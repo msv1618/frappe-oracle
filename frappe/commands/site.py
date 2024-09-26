@@ -21,8 +21,8 @@ from frappe.utils.bench_helper import CliCtxObj
 @click.option("--db-password", help="Database password")
 @click.option(
 	"--db-type",
-	default="mariadb",
-	type=click.Choice(["mariadb", "postgres"]),
+	default="oracledb",
+	type=click.Choice(["mariadb", "postgres", "oracledb"]),
 	help='Optional "postgres" or "mariadb". Default is "mariadb"',
 )
 @click.option("--db-host", help="Database Host")
