@@ -9,7 +9,7 @@ from pypika.terms import PseudoColumn
 import frappe
 from frappe.query_builder.terms import NamedParameterWrapper
 
-from .builder import MariaDB, Postgres
+from .builder import MariaDB, Postgres, OracleDB
 
 
 class PseudoColumnMapper(PseudoColumn):
@@ -49,7 +49,8 @@ def get_query_builder(type_of_db: str) -> Postgres | MariaDB:
 	        type_of_db: string value of the db used
 	"""
 	db = db_type_is(type_of_db)
-	picks = {db_type_is.MARIADB: MariaDB, db_type_is.POSTGRES: Postgres, db_type_is.ORACLEDB: OracleDB}
+	picks = {db_type_is.MARIADB: MariaDB, db_type_is.POSTGRES: Postgres,
+			 db_type_is.ORACLEDB: OracleDB}
 	return picks[db]
 
 

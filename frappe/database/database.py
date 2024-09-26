@@ -39,6 +39,9 @@ if TYPE_CHECKING:
 	from psycopg2 import cursor as PostgresCursor
 	from pymysql.connections import Connection as MariadbConnection
 	from pymysql.cursors import Cursor as MariadbCursor
+	from oracledb.connection import Connection as OracleDBConnection
+	from oracledb.cursor import Cursor as OracleDBCursor
+
 
 IFNULL_PATTERN = re.compile(r"ifnull\(", flags=re.IGNORECASE)
 INDEX_PATTERN = re.compile(r"\s*\([^)]+\)\s*")
@@ -115,8 +118,8 @@ class Database:
 
 	def connect(self):
 		"""Connects to a database as set in `site_config.json`."""
-		self._conn: "MariadbConnection" | "PostgresConnection" = self.get_connection()
-		self._cursor: "MariadbCursor" | "PostgresCursor" = self._conn.cursor()
+		self._conn: "MariadbConnection" | "PostgresConnection" | "OracleDBConnection" = self.get_connection()
+		self._cursor: "MariadbCursor" | "PostgresCursor" | "OracleDBCursor" = self._conn.cursor()
 
 		try:
 			if execution_timeout := get_query_execution_timeout():
