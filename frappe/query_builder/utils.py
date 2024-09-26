@@ -17,7 +17,7 @@ class PseudoColumnMapper(PseudoColumn):
 		super().__init__(name)
 
 	def get_sql(self, **kwargs):
-		if frappe.db.db_type == "postgres":
+		if frappe.db.db_type in ("postgres", "oracledb"):
 			self.name = self.name.replace("`", '"')
 		return self.name
 
@@ -25,6 +25,7 @@ class PseudoColumnMapper(PseudoColumn):
 class db_type_is(Enum):
 	MARIADB = "mariadb"
 	POSTGRES = "postgres"
+	ORACLEDB = "oracledb"
 
 
 class ImportMapper:
@@ -48,7 +49,7 @@ def get_query_builder(type_of_db: str) -> Postgres | MariaDB:
 	        type_of_db: string value of the db used
 	"""
 	db = db_type_is(type_of_db)
-	picks = {db_type_is.MARIADB: MariaDB, db_type_is.POSTGRES: Postgres}
+	picks = {db_type_is.MARIADB: MariaDB, db_type_is.POSTGRES: Postgres, db_type_is.ORACLEDB: OracleDB}
 	return picks[db]
 
 

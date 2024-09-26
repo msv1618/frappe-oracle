@@ -41,6 +41,7 @@ def _new_site(
 	site,
 	db_root_username=None,
 	db_root_password=None,
+	db_root_system_name=None,
 	admin_password=None,
 	verbose=False,
 	install_apps=None,
@@ -83,6 +84,7 @@ def _new_site(
 		install_db(
 			root_login=db_root_username,
 			root_password=db_root_password,
+			root_system_name=db_root_system_name,
 			db_name=db_name,
 			admin_password=admin_password,
 			verbose=verbose,
@@ -120,6 +122,7 @@ def _new_site(
 def install_db(
 	root_login=None,
 	root_password=None,
+	root_system_name=None,
 	db_name=None,
 	source_sql=None,
 	admin_password=None,

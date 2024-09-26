@@ -32,7 +32,9 @@ from frappe.utils.bench_helper import CliCtxObj
 	"--mariadb-root-username",
 	help='Root username for MariaDB or PostgreSQL, Default is "root"',
 )
-@click.option("--db-root-password", "--mariadb-root-password", help="Root password for MariaDB or PostgreSQL")
+@click.option("--db-root-password", "--mariadb-root-password",
+			  help="Root password for MariaDB or PostgreSQL")
+@click.option("--db-root-system-name", help="System name for Oracledb")
 @click.option(
 	"--db-socket",
 	"--mariadb-db-socket",
@@ -55,10 +57,12 @@ from frappe.utils.bench_helper import CliCtxObj
 )
 @click.option("--admin-password", help="Administrator password for new site", default=None)
 @click.option("--verbose", is_flag=True, default=False, help="Verbose")
-@click.option("--force", help="Force restore if site/database already exists", is_flag=True, default=False)
+@click.option("--force", help="Force restore if site/database already exists", is_flag=True,
+			  default=False)
 @click.option("--source-sql", "--source_sql", help="Initiate database with a SQL file")
 @click.option("--install-app", multiple=True, help="Install app after installation")
-@click.option("--set-default", is_flag=True, default=False, help="Set the new site as default site")
+@click.option("--set-default", is_flag=True, default=False,
+			  help="Set the new site as default site")
 @click.option(
 	"--setup-db/--no-setup-db",
 	default=True,
@@ -69,6 +73,7 @@ def new_site(
 	site,
 	db_root_username=None,
 	db_root_password=None,
+	db_root_system_name=None,
 	admin_password=None,
 	verbose=False,
 	source_sql=None,
@@ -112,6 +117,7 @@ def new_site(
 			site,
 			db_root_username=db_root_username,
 			db_root_password=db_root_password,
+			db_root_system_name=db_root_system_name,
 			admin_password=admin_password,
 			verbose=verbose,
 			install_apps=install_app,
@@ -140,6 +146,84 @@ def new_site(
 		sys.exit(1)
 
 
+def test_new_site(
+	site,
+	db_root_username=None,
+	db_root_password=None,
+	db_root_system_name=None,
+	admin_password=None,
+	verbose=False,
+	source_sql=None,
+	force=None,
+	no_mariadb_socket=False,
+	mariadb_user_host_login_scope=False,
+	install_app=None,
+	db_name=None,
+	db_password=None,
+	db_type=None,
+	db_socket=None,
+	db_host=None,
+	db_port=None,
+	db_user=None,
+	set_default=False,
+	setup_db=True,
+):
+	"Create a new site"
+	from frappe.installer import _new_site
+
+	frappe.init(site, new_site=True)
+
+	mariadb_user_host_login_scope = None
+
+	if no_mariadb_socket:
+		click.secho(
+			"--no-mariadb-socket is DEPRECATED; "
+			"use --mariadb-user-host-login-scope='%' (wildcard) or --mariadb-user-host-login-scope=<myhostscope>, instead. "
+			"The name of this option was misleading: it had nothing to do with sockets.",
+			fg="yellow",
+		)
+		mariadb_user_host_login_scope = "%"
+	if mariadb_user_host_login_scope:
+		mariadb_user_host_login_scope = mariadb_user_host_login_scope
+
+	rollback_callback = CallbackManager()
+
+	try:
+		_new_site(
+			db_name,
+			site,
+			db_root_username=db_root_username,
+			db_root_password=db_root_password,
+			db_root_system_name=db_root_system_name,
+			admin_password=admin_password,
+			verbose=verbose,
+			install_apps=install_app,
+			source_sql=source_sql,
+			force=force,
+			db_password=db_password,
+			db_type=db_type,
+			db_socket=db_socket,
+			db_host=db_host,
+			db_port=db_port,
+			db_user=db_user,
+			setup_db=setup_db,
+			rollback_callback=rollback_callback,
+			mariadb_user_host_login_scope=mariadb_user_host_login_scope,
+		)
+
+		if set_default:
+			use(site)
+
+	except Exception:
+		traceback.print_exc()
+		if sys.__stdin__.isatty() and click.confirm(
+			"Site creation failed, do you want to rollback the site?", abort=True
+		):
+			rollback_callback.run()
+		sys.exit(1)
+
+
+
 @click.command("restore")
 @click.argument("sql-file-path")
 @click.option(
@@ -147,11 +231,13 @@ def new_site(
 	"--mariadb-root-username",
 	help='Root username for MariaDB or PostgreSQL, Default is "root"',
 )
-@click.option("--db-root-password", "--mariadb-root-password", help="Root password for MariaDB or PostgreSQL")
+@click.option("--db-root-password", "--mariadb-root-password",
+			  help="Root password for MariaDB or PostgreSQL")
 @click.option("--db-name", help="Database name for site in case it is a new one")
 @click.option("--admin-password", help="Administrator password for new site")
 @click.option("--install-app", multiple=True, help="Install app after installation")
-@click.option("--with-public-files", help="Restores the public files of the site, given path to its tar file")
+@click.option("--with-public-files",
+			  help="Restores the public files of the site, given path to its tar file")
 @click.option(
 	"--with-private-files",
 	help="Restores the private files of the site, given path to its tar file",
@@ -225,16 +311,19 @@ def _restore(
 
 	if "cipher" in out.decode().split(":")[-1].strip():
 		if encryption_key:
-			click.secho("Encrypted backup file detected. Decrypting using provided key.", fg="yellow")
+			click.secho("Encrypted backup file detected. Decrypting using provided key.",
+						fg="yellow")
 
 		else:
-			click.secho("Encrypted backup file detected. Decrypting using site config.", fg="yellow")
+			click.secho("Encrypted backup file detected. Decrypting using site config.",
+						fg="yellow")
 			encryption_key = get_or_generate_backup_encryption_key()
 
 		with decrypt_backup(sql_file_path, encryption_key):
 			# Rollback on unsuccessful decryption
 			if not os.path.exists(sql_file_path):
-				click.secho("Decryption failed. Please provide a valid key and try again.", fg="red")
+				click.secho("Decryption failed. Please provide a valid key and try again.",
+							fg="red")
 				sys.exit(1)
 
 			restore_backup(
@@ -308,7 +397,8 @@ def restore_backup(
 	# Try to resolve path to the file if we can't find it directly
 	if not Path(sql_file_path).exists():
 		click.secho(
-			f"File {sql_file_path} not found. Trying to check in alternative directories.", fg="yellow"
+			f"File {sql_file_path} not found. Trying to check in alternative directories.",
+			fg="yellow"
 		)
 		for dir in dirs:
 			potential_path = Path(dir) / Path(sql_file_path)
@@ -384,11 +474,13 @@ def partial_restore(context: CliCtxObj, sql_file_path, verbose, encryption_key=N
 
 	if "cipher" in out.decode().split(":")[-1].strip():
 		if encryption_key:
-			click.secho("Encrypted backup file detected. Decrypting using provided key.", fg="yellow")
+			click.secho("Encrypted backup file detected. Decrypting using provided key.",
+						fg="yellow")
 			key = encryption_key
 
 		else:
-			click.secho("Encrypted backup file detected. Decrypting using site config.", fg="yellow")
+			click.secho("Encrypted backup file detected. Decrypting using site config.",
+						fg="yellow")
 			key = get_or_generate_backup_encryption_key()
 
 		with decrypt_backup(sql_file_path, key):
@@ -425,15 +517,18 @@ def partial_restore(context: CliCtxObj, sql_file_path, verbose, encryption_key=N
 	"--mariadb-root-username",
 	help='Root username for MariaDB or PostgreSQL, Default is "root"',
 )
-@click.option("--db-root-password", "--mariadb-root-password", help="Root password for MariaDB or PostgreSQL")
+@click.option("--db-root-password", "--mariadb-root-password",
+			  help="Root password for MariaDB or PostgreSQL")
 @click.option("--yes", is_flag=True, default=False, help="Pass --yes to skip confirmation")
 @pass_context
 def reinstall(
-	context: CliCtxObj, admin_password=None, db_root_username=None, db_root_password=None, yes=False
+	context: CliCtxObj, admin_password=None, db_root_username=None, db_root_password=None,
+	yes=False
 ):
 	"Reinstall site ie. wipe all data and start over"
 	site = get_site(context)
-	_reinstall(site, admin_password, db_root_username, db_root_password, yes, verbose=context.verbose)
+	_reinstall(site, admin_password, db_root_username, db_root_password, yes,
+			   verbose=context.verbose)
 
 
 def _reinstall(
@@ -447,7 +542,8 @@ def _reinstall(
 	from frappe.installer import _new_site
 
 	if not yes:
-		click.confirm("This will wipe your database. Are you sure you want to reinstall?", abort=True)
+		click.confirm("This will wipe your database. Are you sure you want to reinstall?",
+					  abort=True)
 	try:
 		frappe.init(site)
 		frappe.connect()
@@ -635,7 +731,8 @@ def describe_database_table(context, doctype, column):
 @click.option("--password")
 @click.option("--send-welcome-email", default=False, is_flag=True)
 @pass_context
-def add_system_manager(context: CliCtxObj, email, first_name, last_name, send_welcome_email, password):
+def add_system_manager(context: CliCtxObj, email, first_name, last_name, send_welcome_email,
+					   password):
 	"Add a new system manager to a site"
 	import frappe.utils.user
 
@@ -643,7 +740,8 @@ def add_system_manager(context: CliCtxObj, email, first_name, last_name, send_we
 		frappe.init(site)
 		frappe.connect()
 		try:
-			frappe.utils.user.add_system_manager(email, first_name, last_name, send_welcome_email, password)
+			frappe.utils.user.add_system_manager(email, first_name, last_name, send_welcome_email,
+												 password)
 			frappe.db.commit()
 		finally:
 			frappe.destroy()
@@ -661,7 +759,8 @@ def add_system_manager(context: CliCtxObj, email, first_name, last_name, send_we
 @click.option("--send-welcome-email", default=False, is_flag=True)
 @pass_context
 def add_user_for_sites(
-	context: CliCtxObj, email, first_name, last_name, user_type, send_welcome_email, password, add_role
+	context: CliCtxObj, email, first_name, last_name, user_type, send_welcome_email, password,
+	add_role
 ):
 	"Add user to a site"
 	import frappe.utils.user
@@ -670,7 +769,8 @@ def add_user_for_sites(
 		frappe.init(site)
 		frappe.connect()
 		try:
-			add_new_user(email, first_name, last_name, user_type, send_welcome_email, password, add_role)
+			add_new_user(email, first_name, last_name, user_type, send_welcome_email, password,
+						 add_role)
 			frappe.db.commit()
 		finally:
 			frappe.destroy()
@@ -823,7 +923,8 @@ def use(site, sites_path="."):
 	type=str,
 	help="Specify the DocTypes to not backup seperated by commas",
 )
-@click.option("--backup-path", default=None, help="Set path for saving all the files in this operation")
+@click.option("--backup-path", default=None,
+			  help="Set path for saving all the files in this operation")
 @click.option("--backup-path-db", default=None, help="Set path for saving database file")
 @click.option("--backup-path-files", default=None, help="Set path for saving public file")
 @click.option("--backup-path-private-files", default=None, help="Set path for saving private file")
@@ -836,7 +937,8 @@ def use(site, sites_path="."):
 )
 @click.option("--verbose", default=False, is_flag=True, help="Add verbosity")
 @click.option("--compress", default=False, is_flag=True, help="Compress private and public files")
-@click.option("--old-backup-metadata", default=False, is_flag=True, help="Use older backup metadata")
+@click.option("--old-backup-metadata", default=False, is_flag=True,
+			  help="Use older backup metadata")
 @pass_context
 def backup(
 	context: CliCtxObj,
@@ -894,7 +996,8 @@ def backup(
 				print(frappe.get_traceback(with_context=True))
 			exit_code = 1
 			continue
-		if frappe.get_system_settings("encrypt_backup") and frappe.get_site_config().encryption_key:
+		if frappe.get_system_settings(
+			"encrypt_backup") and frappe.get_site_config().encryption_key:
 			click.secho(
 				"Backup encryption is turned on. Please note the backup encryption key.",
 				fg="yellow",
@@ -943,7 +1046,8 @@ def remove_from_installed_apps(context: CliCtxObj, app):
 	is_flag=True,
 	default=False,
 )
-@click.option("--dry-run", help="List all doctypes that will be deleted", is_flag=True, default=False)
+@click.option("--dry-run", help="List all doctypes that will be deleted", is_flag=True,
+			  default=False)
 @click.option("--no-backup", help="Do not backup the site", is_flag=True, default=False)
 @click.option("--force", help="Force remove app from site", is_flag=True, default=False)
 @pass_context
@@ -958,7 +1062,8 @@ def uninstall(context: CliCtxObj, app, dry_run, yes, no_backup, force):
 			frappe.init(site)
 			frappe.connect()
 			with filelock("uninstall_app"):
-				remove_app(app_name=app, dry_run=dry_run, yes=yes, no_backup=no_backup, force=force)
+				remove_app(app_name=app, dry_run=dry_run, yes=yes, no_backup=no_backup,
+						   force=force)
 		finally:
 			frappe.destroy()
 	if not context.sites:
@@ -981,7 +1086,8 @@ def uninstall(context: CliCtxObj, app, dry_run, yes, no_backup, force):
 )
 @click.option("--archived-sites-path")
 @click.option("--no-backup", is_flag=True, default=False)
-@click.option("--force", help="Force drop-site even if an error is encountered", is_flag=True, default=False)
+@click.option("--force", help="Force drop-site even if an error is encountered", is_flag=True,
+			  default=False)
 def drop_site(
 	site,
 	db_root_username="root",
@@ -1068,7 +1174,8 @@ def move(dest_dir, site):
 @click.command("set-password")
 @click.argument("user")
 @click.argument("password", required=False)
-@click.option("--logout-all-sessions", help="Log out from all sessions", is_flag=True, default=False)
+@click.option("--logout-all-sessions", help="Log out from all sessions", is_flag=True,
+			  default=False)
 @pass_context
 def set_password(context: CliCtxObj, user, password=None, logout_all_sessions=False):
 	"Set password for a user on a site"
@@ -1081,7 +1188,8 @@ def set_password(context: CliCtxObj, user, password=None, logout_all_sessions=Fa
 
 @click.command("set-admin-password")
 @click.argument("admin-password", required=False)
-@click.option("--logout-all-sessions", help="Log out from all sessions", is_flag=True, default=False)
+@click.option("--logout-all-sessions", help="Log out from all sessions", is_flag=True,
+			  default=False)
 @pass_context
 def set_admin_password(context: CliCtxObj, admin_password=None, logout_all_sessions=False):
 	"Set Administrator password for a site"
@@ -1146,7 +1254,8 @@ def set_last_active_for_user(context: CliCtxObj, user=None):
 @click.option("--docname")
 @click.option("--after-commit")
 @pass_context
-def publish_realtime(context: CliCtxObj, event, message, room, user, doctype, docname, after_commit):
+def publish_realtime(context: CliCtxObj, event, message, room, user, doctype, docname,
+					 after_commit):
 	"Publish realtime event from bench"
 	from frappe import publish_realtime
 
@@ -1242,7 +1351,8 @@ def stop_recording(context: CliCtxObj):
 
 
 @click.command("ngrok")
-@click.option("--bind-tls", is_flag=True, default=False, help="Returns a reference to the https tunnel.")
+@click.option("--bind-tls", is_flag=True, default=False,
+			  help="Returns a reference to the https tunnel.")
 @click.option(
 	"--use-default-authtoken",
 	is_flag=True,
@@ -1353,7 +1463,8 @@ def clear_log_table(context: CliCtxObj, doctype, days, no_backup):
 
 @click.command("trim-database")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would be deleted")
-@click.option("--format", "-f", default="text", type=click.Choice(["json", "text"]), help="Output format")
+@click.option("--format", "-f", default="text", type=click.Choice(["json", "text"]),
+			  help="Output format")
 @click.option("--no-backup", is_flag=True, default=False, help="Do not backup the site")
 @click.option(
 	"--yes",
@@ -1393,7 +1504,8 @@ def trim_database(context: CliCtxObj, dry_run, format, no_backup, yes=False):
 		for table_name in database_tables:
 			if not table_name.startswith("tab"):
 				continue
-			if table_name.replace("tab", "", 1) not in doctype_tables and table_name not in STANDARD_TABLES:
+			if table_name.replace("tab", "",
+								  1) not in doctype_tables and table_name not in STANDARD_TABLES:
 				TABLES_TO_DROP.append(table_name)
 
 		if not TABLES_TO_DROP:
@@ -1463,7 +1575,8 @@ def get_standard_tables():
 
 @click.command("trim-tables")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would be deleted")
-@click.option("--format", "-f", default="table", type=click.Choice(["json", "table"]), help="Output format")
+@click.option("--format", "-f", default="table", type=click.Choice(["json", "table"]),
+			  help="Output format")
 @click.option("--no-backup", is_flag=True, default=False, help="Do not backup the site")
 @pass_context
 def trim_tables(context: CliCtxObj, dry_run, format, no_backup):
@@ -1487,7 +1600,8 @@ def trim_tables(context: CliCtxObj, dry_run, format, no_backup):
 			trimmed_data = trim_tables(dry_run=dry_run, quiet=format == "json")
 
 			if format == "table" and not dry_run:
-				click.secho(f"The following data have been removed from {frappe.local.site}", fg="green")
+				click.secho(f"The following data have been removed from {frappe.local.site}",
+							fg="green")
 
 			handle_data(trimmed_data, format=format)
 		finally:
@@ -1502,7 +1616,8 @@ def handle_data(data: dict, format="json"):
 	else:
 		from frappe.utils.commands import render_table
 
-		data = [["DocType", "Fields"]] + [[table, ", ".join(columns)] for table, columns in data.items()]
+		data = [["DocType", "Fields"]] + [[table, ", ".join(columns)] for table, columns in
+										  data.items()]
 		render_table(data)
 
 
