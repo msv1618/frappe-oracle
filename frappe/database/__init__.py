@@ -15,6 +15,9 @@ def setup_database(force, verbose=None, mariadb_user_host_login_scope=None):
 		import frappe.database.postgres.setup_db
 
 		return frappe.database.postgres.setup_db.setup_database()
+	elif frappe.conf.db_type == "oracledb":
+		import frappe.database.oracledb.setup_db
+		return frappe.database.oracledb.setup_db.setup_database()
 	else:
 		import frappe.database.mariadb.setup_db
 
@@ -26,8 +29,10 @@ def bootstrap_database(verbose=None, source_sql=None):
 
 	if frappe.conf.db_type == "postgres":
 		import frappe.database.postgres.setup_db
-
 		return frappe.database.postgres.setup_db.bootstrap_database(verbose, source_sql)
+	elif frappe.conf.db_type == "oracledb":
+		import frappe.database.oracledb.setup_db
+		return frappe.database.oracledb.setup_db.bootstrap_database(verbose, source_sql)
 	else:
 		import frappe.database.mariadb.setup_db
 
@@ -41,13 +46,18 @@ def drop_user_and_database(db_name, db_user):
 		import frappe.database.postgres.setup_db
 
 		return frappe.database.postgres.setup_db.drop_user_and_database(db_name, db_user)
+	elif frappe.conf.db_type == "oracledb":
+		import frappe.database.oracledb.setup_db
+
+		return frappe.database.oracledb.setup_db.drop_user_and_database(db_name, db_user)
 	else:
 		import frappe.database.mariadb.setup_db
 
 		return frappe.database.mariadb.setup_db.drop_user_and_database(db_name, db_user)
 
 
-def get_db(socket=None, host=None, user=None, password=None, port=None, cur_db_name=None):
+def get_db(socket=None, host=None, user=None, password=None, port=None, cur_db_name=None,
+		   service_name=None):
 	import frappe
 
 	if frappe.conf.db_type == "postgres":
@@ -56,16 +66,22 @@ def get_db(socket=None, host=None, user=None, password=None, port=None, cur_db_n
 		return frappe.database.postgres.database.PostgresDatabase(
 			socket, host, user, password, port, cur_db_name
 		)
+	elif frappe.conf.db_type == "oracledb":
+		import frappe.database.oracledb.database
+
+		return frappe.database.oracledb.database.OracleDBDatabase(
+			socket, host, user, password, port, cur_db_name, service_name
+		)
 	else:
 		import frappe.database.mariadb.database
-
 		return frappe.database.mariadb.database.MariaDBDatabase(
 			socket, host, user, password, port, cur_db_name
 		)
 
 
 def get_command(
-	socket=None, host=None, port=None, user=None, password=None, db_name=None, extra=None, dump=False
+	socket=None, host=None, port=None, user=None, password=None, db_name=None,
+	extra=None, dump=False, service_name=None
 ):
 	import frappe
 
@@ -85,6 +101,22 @@ def get_command(
 			conn_string = f"postgresql://{user}@{host}:{port}/{db_name}"
 
 		command = [conn_string]
+
+		if extra:
+			command.extend(extra)
+	elif frappe.conf.db_type == "oracledb":
+		from os import walk, environ
+		from os.path import join as path_join
+		oracle_dir = next(i for _, i, _ in walk("/opt/oracle"))
+
+		environ["PATH"] = environ["PATH"] + ":".join([path_join("/opt/oracle", i) for i in oracle_dir])
+
+		if dump:
+			bin, bin_name = which("sqlplus"), "sqlplus"
+		else:
+			bin, bin_name = which("sqlplus"), "sqlplus"
+
+		command = [f"{user}/{password}@{host}:{port}/{service_name}"]
 
 		if extra:
 			command.extend(extra)

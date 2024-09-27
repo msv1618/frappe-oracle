@@ -149,6 +149,8 @@ def install_db(
 		root_login = "root"
 	elif not root_login and db_type == "postgres":
 		root_login = "postgres"
+	elif not root_login and db_type == "oracle":
+		root_login = "system"
 
 	make_conf(
 		db_name,
@@ -159,6 +161,7 @@ def install_db(
 		db_host=db_host,
 		db_port=db_port,
 		db_user=db_user,
+		db_service_name=root_system_name
 	)
 	frappe.flags.in_install_db = True
 
@@ -551,6 +554,7 @@ def make_conf(
 	db_host=None,
 	db_port=None,
 	db_user=None,
+	db_service_name=None
 ):
 	site = frappe.local.site
 	make_site_config(
@@ -562,6 +566,7 @@ def make_conf(
 		db_host=db_host,
 		db_port=db_port,
 		db_user=db_user,
+		db_service_name=db_service_name
 	)
 	sites_path = frappe.local.sites_path
 	frappe.destroy()
@@ -577,6 +582,7 @@ def make_site_config(
 	db_host=None,
 	db_port=None,
 	db_user=None,
+	db_service_name=None
 ):
 	frappe.create_folder(os.path.join(frappe.local.site_path))
 	site_file = get_site_config_path()
@@ -596,6 +602,9 @@ def make_site_config(
 
 			if db_port:
 				site_config["db_port"] = db_port
+
+			if db_service_name:
+				site_config["db_service_name"] = db_service_name
 
 			site_config["db_user"] = db_user or db_name
 

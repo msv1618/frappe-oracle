@@ -42,7 +42,7 @@ class BuilderIdentificationFailed(Exception):
 		super().__init__("Couldn't guess builder")
 
 
-def get_query_builder(type_of_db: str) -> Postgres | MariaDB:
+def get_query_builder(type_of_db: str) -> Postgres | MariaDB | OracleDB:
 	"""Return the query builder object.
 
 	Args:
@@ -82,7 +82,10 @@ def patch_query_execute():
 
 	def execute_query(query, *args, **kwargs):
 		child_queries = query._child_queries if isinstance(query._child_queries, list) else []
-		query, params = prepare_query(query)
+		if frappe.conf.db_type != 'oracledb':
+			query, params = prepare_query(query)
+		else:
+			params = []
 		result = frappe.db.sql(query, params, *args, **kwargs)  # nosemgrep
 		execute_child_queries(child_queries, result)
 		return result

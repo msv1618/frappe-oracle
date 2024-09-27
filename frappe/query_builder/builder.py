@@ -127,12 +127,8 @@ class OracleDB(Base, OracleQuery):
 
 	@classmethod
 	def from_(cls, table, *args, **kwargs):
-		if isinstance(table, Table):
-			if table._schema:
-				if table._schema._name == "information_schema":
-					table = cls.schema_translation.get(table._table_name) or table
 
-		elif isinstance(table, str):
+		if isinstance(table, str):
 			table = cls.DocType(table)
 
 		return super().from_(table, *args, **kwargs)

@@ -222,13 +222,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
 	from frappe.database.mariadb.database import MariaDBDatabase
 	from frappe.database.postgres.database import PostgresDatabase
+	from frappe.database.oracledb.database import OracleDBDatabase
+
 	from frappe.email.doctype.email_queue.email_queue import EmailQueue
 	from frappe.model.document import Document
-	from frappe.query_builder.builder import MariaDB, Postgres
+	from frappe.query_builder.builder import MariaDB, Postgres, OracleDB
 	from frappe.utils.redis_wrapper import RedisWrapper
 
-	db: MariaDBDatabase | PostgresDatabase
-	qb: MariaDB | Postgres
+	db: MariaDBDatabase | PostgresDatabase | OracleDBDatabase
+	qb: MariaDB | Postgres | OracleDB
 	cache: RedisWrapper
 	response: _dict
 	conf: _dict
@@ -314,7 +316,8 @@ def init(site: str, sites_path: str = ".", new_site: bool = False, force=False) 
 	local.initialised = True
 
 
-def connect(site: str | None = None, db_name: str | None = None, set_admin_as_user: bool = True) -> None:
+def connect(site: str | None = None, db_name: str | None = None,
+			set_admin_as_user: bool = True) -> None:
 	"""Connect to site database instance.
 
 	:param site: (Deprecated) If site is given, calls `frappe.init`.
@@ -350,6 +353,7 @@ def connect(site: str | None = None, db_name: str | None = None, set_admin_as_us
 		user=local.conf.db_user or db_name,
 		password=local.conf.db_password,
 		cur_db_name=local.conf.db_name or db_name,
+		service_name=local.conf.db_service_name
 	)
 	if set_admin_as_user:
 		set_user("Administrator")
