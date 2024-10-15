@@ -427,40 +427,43 @@ def sync_value(value: dict):
 	Sync a given document to global search
 	:param value: dict of { doctype, name, content, published, title, route }
 	"""
-
-	frappe.db.multisql(
-		{
-			"mariadb": """INSERT INTO `__global_search`
-			(`doctype`, `name`, `content`, `published`, `title`, `route`)
-			VALUES (%(doctype)s, %(name)s, %(content)s, %(published)s, %(title)s, %(route)s)
-			ON DUPLICATE key UPDATE
-				`content`=%(content)s,
-				`published`=%(published)s,
-				`title`=%(title)s,
-				`route`=%(route)s
-		""",
-			"postgres": """INSERT INTO `__global_search`
-			(`doctype`, `name`, `content`, `published`, `title`, `route`)
-			VALUES (%(doctype)s, %(name)s, %(content)s, %(published)s, %(title)s, %(route)s)
-			ON CONFLICT("doctype", "name") DO UPDATE SET
-				`content`=%(content)s,
-				`published`=%(published)s,
-				`title`=%(title)s,
-				`route`=%(route)s
-		""",
-			"oracledb": """INSERT INTO "__global_search"
-			("doctype", "name", "content", "published", "title", "route")
-			VALUES (:doctype, :name, :content, :published, :title, :route)
-		""",
-			# TODO: Research on insert-update case in oracle db
-			# ON CONFLICT("doctype", "name") DO UPDATE SET
-			# "content" =:content,
-			# "published" =:published,
-			# "title" =:title,
-			# "route" =:route
-		},
-		value,
-	)
+	if frappe.is_oracledb:
+		frappe.db.sql(
+			"""
+			MERGE INTO {schema}."__global_search" gs
+			USING (SELECT '{doctype}' "doctype", '{name}' "name", '{content}' "content", '{published}' "published", '{title}' "title", '{route}' "route" FROM dual) st
+			ON (gs.doctype = st.doctype AND gs.name = st.name)
+			WHEN MATCHED THEN
+			UPDATE SET gs."content" = ts."content", gs."published" = st."published", gs."title" = st."title", gs."route" = st."route"
+			WHEN NOT MATCHED THEN
+			INSERT ("doctype", "name", "content", "published", "title", "route")
+			VALUES ('{doctype}', '{name}', '{content}', '{published}', '{title}', '{route}')
+			""".format( schema=frappe.conf.db_name, **value )
+		)
+	else:
+		frappe.db.multisql(
+			{
+				"mariadb": """INSERT INTO `__global_search`
+				(`doctype`, `name`, `content`, `published`, `title`, `route`)
+				VALUES (%(doctype)s, %(name)s, %(content)s, %(published)s, %(title)s, %(route)s)
+				ON DUPLICATE key UPDATE
+					`content`=%(content)s,
+					`published`=%(published)s,
+					`title`=%(title)s,
+					`route`=%(route)s
+			""",
+				"postgres": """INSERT INTO `__global_search`
+				(`doctype`, `name`, `content`, `published`, `title`, `route`)
+				VALUES (%(doctype)s, %(name)s, %(content)s, %(published)s, %(title)s, %(route)s)
+				ON CONFLICT("doctype", "name") DO UPDATE SET
+					`content`=%(content)s,
+					`published`=%(published)s,
+					`title`=%(title)s,
+					`route`=%(route)s
+			"""
+			},
+			value,
+		)
 
 
 def delete_for_document(doc):
