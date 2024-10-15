@@ -427,6 +427,9 @@ def sync_value(value: dict):
 	Sync a given document to global search
 	:param value: dict of { doctype, name, content, published, title, route }
 	"""
+	print("="*20)
+	print("value: [[", value, "]]")
+	print("="*20)
 	if frappe.is_oracledb:
 		frappe.db.sql(
 			"""
