@@ -70,7 +70,7 @@ def _new_site(
 		import hashlib
 
 		db_name = (
-			"_"
+			("" if frappe.is_oracledb else "_")
 			+ hashlib.sha1(
 				os.path.realpath(frappe.get_site_path()).encode(), usedforsecurity=False
 			).hexdigest()[:16]
