@@ -15,6 +15,13 @@ from frappe.utils import get_table_name
 
 
 class FrappeField(Field):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self._set_to_clob_where = False
+
+	def set_to_clob_where(self, value: bool = True):
+		self._set_to_clob_where = value
+
 	def get_sql(self, **kwargs: Any) -> str:
 		if frappe.is_oracledb:
 			with_alias = kwargs.pop("with_alias", False)
@@ -38,7 +45,11 @@ class FrappeField(Field):
 
 			field_alias = getattr(self, "alias", None)
 			if with_alias:
-				return format_alias_sql(field_sql, field_alias, quote_char='"', **kwargs)
+				field_sql = format_alias_sql(field_sql, field_alias, quote_char='"', **kwargs)
+
+			if self._set_to_clob_where:
+				field_sql = f"DBMS_LOB.SUBSTR({field_sql}, 4000, 1)"
+
 			return field_sql
 		return super().get_sql(**kwargs)
 
@@ -258,9 +269,6 @@ class FrappeOracleQueryBuilder(OracleQueryBuilder):
 		return " ({columns})".format(
 			columns=",".join(f'"{term.name}"' for term in self._columns)
 		)
-
-	def _where_sql(self, quote_char: Optional[str] = None, **kwargs: Any) -> str:
-		return super()._where_sql(quote_char=quote_char, **kwargs)
 
 	def _select_sql(self, **kwargs: Any) -> str:
 		return super()._select_sql(**kwargs)

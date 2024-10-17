@@ -180,6 +180,22 @@ class Engine:
 		elif doctype:
 			_field = frappe.qb.DocType(doctype)[field]
 
+		if frappe.is_oracledb:
+			resp = frappe.db.sql(
+				f"""
+				SELECT tabDocField."fieldtype"  FROM
+				{frappe.conf.db_name}."tabDocField" tabDocField
+				WHERE tabDocField."parent" = '{self.doctype}'
+				AND tabDocField."fieldname" = '{_field.name}'
+				AND tabDocField."parenttype" = 'DocType'
+				AND tabDocField."parentfield" = 'fields'
+				AND tabDocField."fieldtype" IN ('Code', 'Text Editor', 'Markdown Editor', 'HTML Editor', 'Text')
+				ORDER BY tabDocField."idx" ASC""", []
+			)
+
+			if resp and _field.name.lower() == 'file_url':
+				_field.set_to_clob_where()
+
 		# apply implicit join if child table is referenced
 		if doctype and doctype != self.doctype:
 			meta = frappe.get_meta(doctype)
@@ -219,6 +235,7 @@ class Engine:
 		if _value is None and isinstance(_field, Field):
 			self.query = self.query.where(_field.isnull())
 		else:
+
 			self.query = self.query.where(operator_fn(_field, _value))
 
 	def get_function_object(self, field: str) -> "Function":
